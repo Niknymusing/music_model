@@ -1,0 +1,521 @@
+/
+RAVE(
+  (pqmf): CachedPQMF(
+    (forward_conv): Conv1d(1, 16, kernel_size=(513,), stride=(16,), bias=False)
+    (inverse_conv): Conv1d(16, 16, kernel_size=(33,), stride=(1,), bias=False)
+  )
+  (encoder): WasserteinEncoder(
+    (encoder): EncoderV2(
+      (net): CachedSequential(
+        (0): Conv1d(16, 128, kernel_size=(7,), stride=(1,), bias=False)
+        (1): Residual(
+          (aligned): Branches(
+            (branches): ModuleList(
+              (0): DilatedUnit(
+                (net): CachedSequential(
+                  (0): LeakyReLU(negative_slope=0.2)
+                  (1): Conv1d(128, 128, kernel_size=(3,), stride=(1,), bias=False)
+                  (2): LeakyReLU(negative_slope=0.2)
+                  (3): Conv1d(128, 128, kernel_size=(1,), stride=(1,), bias=False)
+                )
+              )
+              (1): Identity()
+            )
+          )
+        )
+        (2): Residual(
+          (aligned): Branches(
+            (branches): ModuleList(
+              (0): DilatedUnit(
+                (net): CachedSequential(
+                  (0): LeakyReLU(negative_slope=0.2)
+                  (1): Conv1d(128, 128, kernel_size=(3,), stride=(1,), dilation=(3,), bias=False)
+                  (2): LeakyReLU(negative_slope=0.2)
+                  (3): Conv1d(128, 128, kernel_size=(1,), stride=(1,), bias=False)
+                )
+              )
+              (1): Identity()
+            )
+          )
+        )
+        (3): Residual(
+          (aligned): Branches(
+            (branches): ModuleList(
+              (0): DilatedUnit(
+                (net): CachedSequential(
+                  (0): LeakyReLU(negative_slope=0.2)
+                  (1): Conv1d(128, 128, kernel_size=(3,), stride=(1,), dilation=(9,), bias=False)
+                  (2): LeakyReLU(negative_slope=0.2)
+                  (3): Conv1d(128, 128, kernel_size=(1,), stride=(1,), bias=False)
+                )
+              )
+              (1): Identity()
+            )
+          )
+        )
+        (4): LeakyReLU(negative_slope=0.2)
+        (5): Conv1d(128, 256, kernel_size=(8,), stride=(4,), bias=False)
+        (6): Residual(
+          (aligned): Branches(
+            (branches): ModuleList(
+              (0): DilatedUnit(
+                (net): CachedSequential(
+                  (0): LeakyReLU(negative_slope=0.2)
+                  (1): Conv1d(256, 256, kernel_size=(3,), stride=(1,), bias=False)
+                  (2): LeakyReLU(negative_slope=0.2)
+                  (3): Conv1d(256, 256, kernel_size=(1,), stride=(1,), bias=False)
+                )
+              )
+              (1): Identity()
+            )
+          )
+        )
+        (7): Residual(
+          (aligned): Branches(
+            (branches): ModuleList(
+              (0): DilatedUnit(
+                (net): CachedSequential(
+                  (0): LeakyReLU(negative_slope=0.2)
+                  (1): Conv1d(256, 256, kernel_size=(3,), stride=(1,), dilation=(3,), bias=False)
+                  (2): LeakyReLU(negative_slope=0.2)
+                  (3): Conv1d(256, 256, kernel_size=(1,), stride=(1,), bias=False)
+                )
+              )
+              (1): Identity()
+            )
+          )
+        )
+        (8): Residual(
+          (aligned): Branches(
+            (branches): ModuleList(
+              (0): DilatedUnit(
+                (net): CachedSequential(
+                  (0): LeakyReLU(negative_slope=0.2)
+                  (1): Conv1d(256, 256, kernel_size=(3,), stride=(1,), dilation=(9,), bias=False)
+                  (2): LeakyReLU(negative_slope=0.2)
+                  (3): Conv1d(256, 256, kernel_size=(1,), stride=(1,), bias=False)
+                )
+              )
+              (1): Identity()
+            )
+          )
+        )
+        (9): LeakyReLU(negative_slope=0.2)
+        (10): Conv1d(256, 512, kernel_size=(8,), stride=(4,), bias=False)
+        (11): Residual(
+          (aligned): Branches(
+            (branches): ModuleList(
+              (0): DilatedUnit(
+                (net): CachedSequential(
+                  (0): LeakyReLU(negative_slope=0.2)
+                  (1): Conv1d(512, 512, kernel_size=(3,), stride=(1,), bias=False)
+                  (2): LeakyReLU(negative_slope=0.2)
+                  (3): Conv1d(512, 512, kernel_size=(1,), stride=(1,), bias=False)
+                )
+              )
+              (1): Identity()
+            )
+          )
+        )
+        (12): Residual(
+          (aligned): Branches(
+            (branches): ModuleList(
+              (0): DilatedUnit(
+                (net): CachedSequential(
+                  (0): LeakyReLU(negative_slope=0.2)
+                  (1): Conv1d(512, 512, kernel_size=(3,), stride=(1,), dilation=(3,), bias=False)
+                  (2): LeakyReLU(negative_slope=0.2)
+                  (3): Conv1d(512, 512, kernel_size=(1,), stride=(1,), bias=False)
+                )
+              )
+              (1): Identity()
+            )
+          )
+        )
+        (13): Residual(
+          (aligned): Branches(
+            (branches): ModuleList(
+              (0): DilatedUnit(
+                (net): CachedSequential(
+                  (0): LeakyReLU(negative_slope=0.2)
+                  (1): Conv1d(512, 512, kernel_size=(3,), stride=(1,), dilation=(9,), bias=False)
+                  (2): LeakyReLU(negative_slope=0.2)
+                  (3): Conv1d(512, 512, kernel_size=(1,), stride=(1,), bias=False)
+                )
+              )
+              (1): Identity()
+            )
+          )
+        )
+        (14): LeakyReLU(negative_slope=0.2)
+        (15): Conv1d(512, 1024, kernel_size=(8,), stride=(4,), bias=False)
+        (16): Residual(
+          (aligned): Branches(
+            (branches): ModuleList(
+              (0): DilatedUnit(
+                (net): CachedSequential(
+                  (0): LeakyReLU(negative_slope=0.2)
+                  (1): Conv1d(1024, 1024, kernel_size=(3,), stride=(1,), bias=False)
+                  (2): LeakyReLU(negative_slope=0.2)
+                  (3): Conv1d(1024, 1024, kernel_size=(1,), stride=(1,), bias=False)
+                )
+              )
+              (1): Identity()
+            )
+          )
+        )
+        (17): Residual(
+          (aligned): Branches(
+            (branches): ModuleList(
+              (0): DilatedUnit(
+                (net): CachedSequential(
+                  (0): LeakyReLU(negative_slope=0.2)
+                  (1): Conv1d(1024, 1024, kernel_size=(3,), stride=(1,), dilation=(3,), bias=False)
+                  (2): LeakyReLU(negative_slope=0.2)
+                  (3): Conv1d(1024, 1024, kernel_size=(1,), stride=(1,), bias=False)
+                )
+              )
+              (1): Identity()
+            )
+          )
+        )
+        (18): LeakyReLU(negative_slope=0.2)
+        (19): Conv1d(1024, 2048, kernel_size=(4,), stride=(2,), bias=False)
+        (20): LeakyReLU(negative_slope=0.2)
+        (21): Conv1d(2048, 16, kernel_size=(3,), stride=(1,), bias=False)
+      )
+    )
+  )
+  (decoder): GeneratorV2(
+    (net): CachedSequential(
+      (0): Conv1d(144, 2048, kernel_size=(3,), stride=(1,), bias=False)
+      (1): LeakyReLU(negative_slope=0.2)
+      (2): ConvTranspose1d(2048, 1024, kernel_size=(4,), stride=(2,), padding=(1,), bias=False)
+      (3): Residual(
+        (aligned): Branches(
+          (branches): ModuleList(
+            (0): DilatedUnit(
+              (net): CachedSequential(
+                (0): LeakyReLU(negative_slope=0.2)
+                (1): Conv1d(1024, 1024, kernel_size=(3,), stride=(1,), bias=False)
+                (2): LeakyReLU(negative_slope=0.2)
+                (3): Conv1d(1024, 1024, kernel_size=(1,), stride=(1,), bias=False)
+              )
+            )
+            (1): Identity()
+          )
+        )
+      )
+      (4): Residual(
+        (aligned): Branches(
+          (branches): ModuleList(
+            (0): DilatedUnit(
+              (net): CachedSequential(
+                (0): LeakyReLU(negative_slope=0.2)
+                (1): Conv1d(1024, 1024, kernel_size=(3,), stride=(1,), dilation=(3,), bias=False)
+                (2): LeakyReLU(negative_slope=0.2)
+                (3): Conv1d(1024, 1024, kernel_size=(1,), stride=(1,), bias=False)
+              )
+            )
+            (1): Identity()
+          )
+        )
+      )
+      (5): LeakyReLU(negative_slope=0.2)
+      (6): ConvTranspose1d(1024, 512, kernel_size=(8,), stride=(4,), padding=(2,), bias=False)
+      (7): Residual(
+        (aligned): Branches(
+          (branches): ModuleList(
+            (0): DilatedUnit(
+              (net): CachedSequential(
+                (0): LeakyReLU(negative_slope=0.2)
+                (1): Conv1d(512, 512, kernel_size=(3,), stride=(1,), bias=False)
+                (2): LeakyReLU(negative_slope=0.2)
+                (3): Conv1d(512, 512, kernel_size=(1,), stride=(1,), bias=False)
+              )
+            )
+            (1): Identity()
+          )
+        )
+      )
+      (8): Residual(
+        (aligned): Branches(
+          (branches): ModuleList(
+            (0): DilatedUnit(
+              (net): CachedSequential(
+                (0): LeakyReLU(negative_slope=0.2)
+                (1): Conv1d(512, 512, kernel_size=(3,), stride=(1,), dilation=(3,), bias=False)
+                (2): LeakyReLU(negative_slope=0.2)
+                (3): Conv1d(512, 512, kernel_size=(1,), stride=(1,), bias=False)
+              )
+            )
+            (1): Identity()
+          )
+        )
+      )
+      (9): Residual(
+        (aligned): Branches(
+          (branches): ModuleList(
+            (0): DilatedUnit(
+              (net): CachedSequential(
+                (0): LeakyReLU(negative_slope=0.2)
+                (1): Conv1d(512, 512, kernel_size=(3,), stride=(1,), dilation=(9,), bias=False)
+                (2): LeakyReLU(negative_slope=0.2)
+                (3): Conv1d(512, 512, kernel_size=(1,), stride=(1,), bias=False)
+              )
+            )
+            (1): Identity()
+          )
+        )
+      )
+      (10): LeakyReLU(negative_slope=0.2)
+      (11): ConvTranspose1d(512, 256, kernel_size=(8,), stride=(4,), padding=(2,), bias=False)
+      (12): Residual(
+        (aligned): Branches(
+          (branches): ModuleList(
+            (0): DilatedUnit(
+              (net): CachedSequential(
+                (0): LeakyReLU(negative_slope=0.2)
+                (1): Conv1d(256, 256, kernel_size=(3,), stride=(1,), bias=False)
+                (2): LeakyReLU(negative_slope=0.2)
+                (3): Conv1d(256, 256, kernel_size=(1,), stride=(1,), bias=False)
+              )
+            )
+            (1): Identity()
+          )
+        )
+      )
+      (13): Residual(
+        (aligned): Branches(
+          (branches): ModuleList(
+            (0): DilatedUnit(
+              (net): CachedSequential(
+                (0): LeakyReLU(negative_slope=0.2)
+                (1): Conv1d(256, 256, kernel_size=(3,), stride=(1,), dilation=(3,), bias=False)
+                (2): LeakyReLU(negative_slope=0.2)
+                (3): Conv1d(256, 256, kernel_size=(1,), stride=(1,), bias=False)
+              )
+            )
+            (1): Identity()
+          )
+        )
+      )
+      (14): Residual(
+        (aligned): Branches(
+          (branches): ModuleList(
+            (0): DilatedUnit(
+              (net): CachedSequential(
+                (0): LeakyReLU(negative_slope=0.2)
+                (1): Conv1d(256, 256, kernel_size=(3,), stride=(1,), dilation=(9,), bias=False)
+                (2): LeakyReLU(negative_slope=0.2)
+                (3): Conv1d(256, 256, kernel_size=(1,), stride=(1,), bias=False)
+              )
+            )
+            (1): Identity()
+          )
+        )
+      )
+      (15): LeakyReLU(negative_slope=0.2)
+      (16): ConvTranspose1d(256, 128, kernel_size=(8,), stride=(4,), padding=(2,), bias=False)
+      (17): Residual(
+        (aligned): Branches(
+          (branches): ModuleList(
+            (0): DilatedUnit(
+              (net): CachedSequential(
+                (0): LeakyReLU(negative_slope=0.2)
+                (1): Conv1d(128, 128, kernel_size=(3,), stride=(1,), bias=False)
+                (2): LeakyReLU(negative_slope=0.2)
+                (3): Conv1d(128, 128, kernel_size=(1,), stride=(1,), bias=False)
+              )
+            )
+            (1): Identity()
+          )
+        )
+      )
+      (18): Residual(
+        (aligned): Branches(
+          (branches): ModuleList(
+            (0): DilatedUnit(
+              (net): CachedSequential(
+                (0): LeakyReLU(negative_slope=0.2)
+                (1): Conv1d(128, 128, kernel_size=(3,), stride=(1,), dilation=(3,), bias=False)
+                (2): LeakyReLU(negative_slope=0.2)
+                (3): Conv1d(128, 128, kernel_size=(1,), stride=(1,), bias=False)
+              )
+            )
+            (1): Identity()
+          )
+        )
+      )
+      (19): Residual(
+        (aligned): Branches(
+          (branches): ModuleList(
+            (0): DilatedUnit(
+              (net): CachedSequential(
+                (0): LeakyReLU(negative_slope=0.2)
+                (1): Conv1d(128, 128, kernel_size=(3,), stride=(1,), dilation=(9,), bias=False)
+                (2): LeakyReLU(negative_slope=0.2)
+                (3): Conv1d(128, 128, kernel_size=(1,), stride=(1,), bias=False)
+              )
+            )
+            (1): Identity()
+          )
+        )
+      )
+      (20): LeakyReLU(negative_slope=0.2)
+      (21): Conv1d(128, 32, kernel_size=(7,), stride=(1,), bias=False)
+    )
+  )
+  (discriminator): CombineDiscriminators(
+    (discriminators): ModuleList(
+      (0): MultiPeriodDiscriminator(
+        (layers): ModuleList(
+          (0): ConvNet(
+            (net): Sequential(
+              (0): Conv2d(1, 128, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (1): LeakyReLU(negative_slope=0.2)
+              (2): Conv2d(128, 256, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (3): LeakyReLU(negative_slope=0.2)
+              (4): Conv2d(256, 512, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (5): LeakyReLU(negative_slope=0.2)
+              (6): Conv2d(512, 1024, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (7): LeakyReLU(negative_slope=0.2)
+              (8): Conv2d(1024, 1, kernel_size=(1, 1), stride=(1, 1))
+            )
+          )
+          (1): ConvNet(
+            (net): Sequential(
+              (0): Conv2d(1, 128, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (1): LeakyReLU(negative_slope=0.2)
+              (2): Conv2d(128, 256, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (3): LeakyReLU(negative_slope=0.2)
+              (4): Conv2d(256, 512, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (5): LeakyReLU(negative_slope=0.2)
+              (6): Conv2d(512, 1024, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (7): LeakyReLU(negative_slope=0.2)
+              (8): Conv2d(1024, 1, kernel_size=(1, 1), stride=(1, 1))
+            )
+          )
+          (2): ConvNet(
+            (net): Sequential(
+              (0): Conv2d(1, 128, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (1): LeakyReLU(negative_slope=0.2)
+              (2): Conv2d(128, 256, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (3): LeakyReLU(negative_slope=0.2)
+              (4): Conv2d(256, 512, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (5): LeakyReLU(negative_slope=0.2)
+              (6): Conv2d(512, 1024, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (7): LeakyReLU(negative_slope=0.2)
+              (8): Conv2d(1024, 1, kernel_size=(1, 1), stride=(1, 1))
+            )
+          )
+          (3): ConvNet(
+            (net): Sequential(
+              (0): Conv2d(1, 128, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (1): LeakyReLU(negative_slope=0.2)
+              (2): Conv2d(128, 256, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (3): LeakyReLU(negative_slope=0.2)
+              (4): Conv2d(256, 512, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (5): LeakyReLU(negative_slope=0.2)
+              (6): Conv2d(512, 1024, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (7): LeakyReLU(negative_slope=0.2)
+              (8): Conv2d(1024, 1, kernel_size=(1, 1), stride=(1, 1))
+            )
+          )
+          (4): ConvNet(
+            (net): Sequential(
+              (0): Conv2d(1, 128, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (1): LeakyReLU(negative_slope=0.2)
+              (2): Conv2d(128, 256, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (3): LeakyReLU(negative_slope=0.2)
+              (4): Conv2d(256, 512, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (5): LeakyReLU(negative_slope=0.2)
+              (6): Conv2d(512, 1024, kernel_size=(5, 1), stride=(4, 1), padding=(2, 0))
+              (7): LeakyReLU(negative_slope=0.2)
+              (8): Conv2d(1024, 1, kernel_size=(1, 1), stride=(1, 1))
+            )
+          )
+        )
+      )
+      (1): MultiScaleDiscriminator(
+        (layers): ModuleList(
+          (0): ConvNet(
+            (net): Sequential(
+              (0): Conv1d(1, 128, kernel_size=(15,), stride=(4,), padding=(7,))
+              (1): LeakyReLU(negative_slope=0.2)
+              (2): Conv1d(128, 256, kernel_size=(15,), stride=(4,), padding=(7,))
+              (3): LeakyReLU(negative_slope=0.2)
+              (4): Conv1d(256, 512, kernel_size=(15,), stride=(4,), padding=(7,))
+              (5): LeakyReLU(negative_slope=0.2)
+              (6): Conv1d(512, 1024, kernel_size=(15,), stride=(4,), padding=(7,))
+              (7): LeakyReLU(negative_slope=0.2)
+              (8): Conv1d(1024, 1, kernel_size=(1,), stride=(1,))
+            )
+          )
+          (1): ConvNet(
+            (net): Sequential(
+              (0): Conv1d(1, 128, kernel_size=(15,), stride=(4,), padding=(7,))
+              (1): LeakyReLU(negative_slope=0.2)
+              (2): Conv1d(128, 256, kernel_size=(15,), stride=(4,), padding=(7,))
+              (3): LeakyReLU(negative_slope=0.2)
+              (4): Conv1d(256, 512, kernel_size=(15,), stride=(4,), padding=(7,))
+              (5): LeakyReLU(negative_slope=0.2)
+              (6): Conv1d(512, 1024, kernel_size=(15,), stride=(4,), padding=(7,))
+              (7): LeakyReLU(negative_slope=0.2)
+              (8): Conv1d(1024, 1, kernel_size=(1,), stride=(1,))
+            )
+          )
+          (2): ConvNet(
+            (net): Sequential(
+              (0): Conv1d(1, 128, kernel_size=(15,), stride=(4,), padding=(7,))
+              (1): LeakyReLU(negative_slope=0.2)
+              (2): Conv1d(128, 256, kernel_size=(15,), stride=(4,), padding=(7,))
+              (3): LeakyReLU(negative_slope=0.2)
+              (4): Conv1d(256, 512, kernel_size=(15,), stride=(4,), padding=(7,))
+              (5): LeakyReLU(negative_slope=0.2)
+              (6): Conv1d(512, 1024, kernel_size=(15,), stride=(4,), padding=(7,))
+              (7): LeakyReLU(negative_slope=0.2)
+              (8): Conv1d(1024, 1, kernel_size=(1,), stride=(1,))
+            )
+          )
+        )
+      )
+    )
+  )
+  (audio_distance): AudioDistanceV1(
+    (multiscale_stft): MultiScaleSTFT(
+      (stfts): ModuleList(
+        (0): Spectrogram()
+        (1): Spectrogram()
+        (2): Spectrogram()
+        (3): Spectrogram()
+        (4): Spectrogram()
+      )
+      (mel_scales): ModuleList(
+        (0): None
+        (1): None
+        (2): None
+        (3): None
+        (4): None
+      )
+    )
+  )
+  (multiband_audio_distance): AudioDistanceV1(
+    (multiscale_stft): MultiScaleSTFT(
+      (stfts): ModuleList(
+        (0): Spectrogram()
+        (1): Spectrogram()
+        (2): Spectrogram()
+        (3): Spectrogram()
+        (4): Spectrogram()
+      )
+      (mel_scales): ModuleList(
+        (0): None
+        (1): None
+        (2): None
+        (3): None
+        (4): None
+      )
+    )
+  )
+)
