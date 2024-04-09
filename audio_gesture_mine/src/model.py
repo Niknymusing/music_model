@@ -63,9 +63,9 @@ if os.environ["RWKV_FLOAT_MODE"] == "bf16":
             assert T <= T_MAX
             assert B * C % min(C, 32) == 0
             w = -torch.exp(w.float().contiguous())
-            u = u.contiguous()
-            k = k.contiguous()
-            v = v.contiguous()
+            u = u.contiguous().to(dtype=torch.bfloat16)
+            k = k.contiguous().to(dtype=torch.bfloat16)
+            v = v.contiguous().to(dtype=torch.bfloat16)
             y = torch.empty((B, T, C), device=w.device, memory_format=torch.contiguous_format, dtype=torch.bfloat16)
             wkv_cuda.forward(B, T, C, w, u, k, v, y)
             ctx.save_for_backward(w, u, k, v, y)
