@@ -49,8 +49,8 @@ import pytorch_lightning as pl
 import random
 import tqdm  # Using tqdm to show progress
 import logging
-from logger_config import setup_logging
-import logging
+#from logger_config import setup_logging
+
 
 
 from pytorch_lightning.loggers import WandbLogger
