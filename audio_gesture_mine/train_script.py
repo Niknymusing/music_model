@@ -87,7 +87,7 @@ pairs = [(os.path.join(in_path, f), os.path.join(in_path, f.replace('_mocap', '_
          for f in tensorfiles if 'mocap' in f]
 
 
-"""
+
 print('creating raw tensors ...')
 
 # Load and adjust tensors
@@ -127,7 +127,7 @@ for mocap_tensor, audio_tensor, video_idx in tensors:
 
 print(f'Batches are successfully created and saved with unique pair indices. n_batches = ', n_batches)
 
-"""
+
 
 # Set parameters
 sequence_length = 64
@@ -137,7 +137,9 @@ batch_size = 1
 in_path = data_dir
 out_path = os.getcwd() + '/training_data/batches5'
 os.makedirs(out_path, exist_ok=True)
-"""
+
+
+
 # Function to verify batch file integrity
 def verify_batch(batch_path):
     try:
@@ -194,7 +196,6 @@ for mocap_tensor, audio_tensor in tensors:
 
 print(f'Batches are successfully created and saved with unique pair indices. n_batches = ', n_batches)
 
-"""
 
 print('instantiating DataModule ....')
 
