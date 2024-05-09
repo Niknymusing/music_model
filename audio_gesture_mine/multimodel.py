@@ -49,7 +49,7 @@ MyFunction = __nop
 if os.environ["RWKV_JIT_ON"] == "1":
     MyModule = torch.jit.ScriptModule
     MyFunction = torch.jit.script_method
-from logger_config import setup_logging
+#from logger_config import setup_logging
 import logging
 
 # Setup logger
