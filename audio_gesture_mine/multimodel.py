@@ -33,14 +33,14 @@ def __nop(ob):
 from typing import Tuple
 import sys
 sys.path.append(os.getcwd()+'/src/rave')
-sys.path.append('/home/nikny/music_model/audio_gesture_mine/src/rave')
-sys.path.append('/home/nikny/music_model/audio_gesture_mine/src')
+sys.path.append('/content/rwkv_mine/audio_gesture_mine/src/rave')
+sys.path.append('/content/rwkv_mine/audio_gesture_mine/src')
 import gin
 gin.enter_interactive_mode()
-from src.rave.blocks import EncoderV2
-from src.mine import MultiscaleSequence_MINE, RunningMineMean
-from src.rave.pqmf import CachedPQMF
-from src.spiralnet import instantiate_model as instantiate_spiralnet
+from rave.blocks import EncoderV2
+from mine import MultiscaleSequence_MINE, RunningMineMean
+from rave.pqmf import CachedPQMF
+from spiralnet import instantiate_model as instantiate_spiralnet
 print('new imports worked')
 from collections import deque
 
