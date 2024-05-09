@@ -1,6 +1,6 @@
 ###### Correct process dataset and instantiate the dataloader, to load the tensors correctly formated locally on the colab instance
 import os
-print("before setting environ var: CUDA_HOME:", os.environ['CUDA_HOME'])
+#print("before setting environ var: CUDA_HOME:", os.environ['CUDA_HOME'])
 # rest of your script
 
 os.environ['CUDA_HOME'] = '/usr/local/cuda-12.3'
@@ -36,7 +36,7 @@ os.environ["RWKV_T_MAX"] = "256"
 import argparse
 from argparse import Namespace
 
-from model_multiscale_new import RWKV
+from multimodel import RWKV
 #torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.enabled = True
 #if args.precision == "fp32":
