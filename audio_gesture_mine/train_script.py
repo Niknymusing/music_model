@@ -18,7 +18,7 @@ import numpy as np
 import pytorch_lightning as pl
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 from pytorch_lightning.callbacks import ModelCheckpoint, Callback
-from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from pytorch_lightning.loggers import TensorBoardLogger#, WandbLogger
 from pytorch_lightning.profilers import PyTorchProfiler
 from pytorch_lightning.strategies import DeepSpeedStrategy
 from datetime import datetime
@@ -57,7 +57,7 @@ logging.info("Starting the training process...")
 
 torch.cuda.empty_cache()
 # Example usage
-data_dir = '/home/nikny/aist_tensors/aist_tensors'
+data_dir = /content/drive/MyDrive/AIST_training_tensors #'/home/nikny/aist_tensors/aist_tensors'
 all_pair_indices = list(range(10))  # Assume 10 pair indices for simplicity
 batch_size = 1
 
