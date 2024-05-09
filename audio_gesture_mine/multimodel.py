@@ -33,8 +33,8 @@ def __nop(ob):
 from typing import Tuple
 import sys
 sys.path.append(os.getcwd()+'/src/rave')
-sys.path.append('/content/rwkv_mine/audio_gesture_mine/src/rave')
-sys.path.append('/content/rwkv_mine/audio_gesture_mine/src')
+sys.path.append('/content/music_model/audio_gesture_mine/src/rave')
+sys.path.append('/content/music_model/audio_gesture_mine/src')
 import gin
 gin.enter_interactive_mode()
 from rave.blocks import EncoderV2
