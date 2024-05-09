@@ -11,18 +11,14 @@ import random
 import torch
 from torch.utils.data import Dataset, DataLoader, Subset, Sampler
 from sklearn.model_selection import train_test_split
-import random
 import torch.nn.functional as F
 #### instantiate the model and start the pytorch lightning trainer
 from pytorch_lightning.callbacks import Callback
-import os
-import random
-import torch
 import numpy as np
 import pytorch_lightning as pl
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, ConcatDataset
 from pytorch_lightning.callbacks import ModelCheckpoint, Callback
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.profilers import PyTorchProfiler
 from pytorch_lightning.strategies import DeepSpeedStrategy
 from datetime import datetime
@@ -35,26 +31,18 @@ os.environ["RWKV_T_MAX"] = "256"
 #os.environ["RWKV_MY_TESTING"] = "x060" # Uncomment this if using the wkv6 CUDA kernel
 import argparse
 from argparse import Namespace
-
 from multimodel import RWKV
 #torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.enabled = True
 #if args.precision == "fp32":
 torch.backends.cudnn.allow_tf32 = True#False
 torch.backends.cuda.matmul.allow_tf32 = True# False
-import os
-import torch
-from torch.utils.data import DataLoader, Dataset, ConcatDataset
-import pytorch_lightning as pl
-import random
 import tqdm  # Using tqdm to show progress
 import logging
 #from logger_config import setup_logging
 
 
 
-from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import ModelCheckpoint
 # Initialize WandbLogger
 
 # Setup logger
