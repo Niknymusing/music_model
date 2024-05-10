@@ -53,7 +53,7 @@ if os.environ["RWKV_JIT_ON"] == "1":
 import logging
 
 # Setup logger
-setup_logging()
+#setup_logging()
 logger = logging.getLogger(__name__)
 
 ########################################################################################################
