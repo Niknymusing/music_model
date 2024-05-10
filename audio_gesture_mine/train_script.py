@@ -3,8 +3,11 @@ import os
 #print("before setting environ var: CUDA_HOME:", os.environ['CUDA_HOME'])
 # rest of your script
 
-os.environ['CUDA_HOME'] = '/usr/local/cuda-12.3'
-print("after setting CUDA_HOME:", os.environ['CUDA_HOME'])
+cuda_path = '/usr/local/cuda'
+os.environ['CUDA_HOME'] = cuda_path
+
+# Now, print out the variable to verify it's correctly set
+print("CUDA_HOME set to:", os.environ['CUDA_HOME'])
 # rest of your script
 
 import random
