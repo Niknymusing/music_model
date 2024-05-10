@@ -22,6 +22,7 @@ from pytorch_lightning.loggers import TensorBoardLogger#, WandbLogger
 from pytorch_lightning.profilers import PyTorchProfiler
 from pytorch_lightning.strategies import DeepSpeedStrategy
 from datetime import datetime
+import time
 # Set Environment Variables
 os.environ["RWKV_CTXLEN"] = '128'
 os.environ["RWKV_HEAD_SIZE_A"] = '64' # Ensure this is consistent with head_size_a in args
@@ -764,9 +765,6 @@ checkpoint_callback_post_validation = ModelCheckpoint(
 
 
 
-import os
-
-
 # Directory where the checkpoints will be saved
 checkpoint_dir = '/home/nikny/training_local/checkpoints'
 
@@ -783,8 +781,6 @@ def save_checkpoint(epoch, model, optimizer):
     print(f'Checkpoint saved: {checkpoint_path}')
 
 
-import time
-from pytorch_lightning import Callback
 
 class PauseTrainingCallback(Callback):
     def __init__(self, pause_duration=3600, run_duration=57600):
