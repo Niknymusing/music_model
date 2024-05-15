@@ -1,0 +1,9 @@
+opencv-python
+mediapipe
+numpy
+python-osc
+rtmidi
+pyaudio
+openmesh
+scikit-learn
+torch-scatter

@@ -15,7 +15,7 @@ if importlib.util.find_spec('deepspeed'):
 from torch.profiler import profile, ProfilerActivity, record_function, schedule
 from torch.optim.lr_scheduler import LambdaLR
 from scipy.spatial.distance import cdist
-
+from loss_func import PairwiseLoss
 from autoclip.torch import QuantileClip
 from collections import deque
 import itertools
@@ -1163,7 +1163,8 @@ class RWKV(pl.LightningModule):
         #self.mine_audio_encoder = AudioEncoder(embedding_dim=self.embedding_dim, n_out = self.n_frequency_features).cuda()
         self.pose_encoder = PoseEncoder(embedding_dim=self.embedding_dim).cuda()
         self.mine_nets = nn.ModuleList([MINE_net(input_dim=self.embedding_dim) for _ in range(self.n_features)]).cuda()  #MultiscaleSequence_MINE([1, 4, 16, 64], [1, 4, 16, 64], args.n_embd, 256)#.to(device)
-       
+
+        self.cdist_balanced_loss = PairwiseLoss((self.n_features, self.n_features))
         #self.mine_calculator = RunningMineMean()
         #self.register_buffer('accumulated_means', torch.zeros(self.n_features, 2).cuda() )
         #self.register_buffer('count', torch.tensor(1.0).cuda() )
@@ -1655,6 +1656,7 @@ class RWKV(pl.LightningModule):
         frobenius_norm = torch.norm(gram_matrix)
         return frobenius_norm#.requires_grad_()
 
+    
 
     def _gram_matrix_loss(self, outputs):
         """Calculate the negative of the Frobenius norm of the Gram matrix of the output vectors."""
@@ -1676,15 +1678,20 @@ class RWKV(pl.LightningModule):
             mean_joint = torch.mean(torch.stack(joint_subsequences)) + self.log_eps
             mean_marg = torch.mean(torch.stack(marg_subsequences))
 
-        mine_value = - mean_joint + torch.log(mean_marg + self.log_eps)
+        mine_value = mean_joint - torch.log(mean_marg + self.log_eps)
         return mine_value.requires_grad_()
     
-    def criterion_model(self, mine_loss, sheaf_gram_loss, final_out_emb = None):
+    def balanced_features_gram_loss(self, input_matrix):
+        return - self.cdist_balanced_loss(input_matrix)
+
+    def criterion_model(self, joint_subsequences, marg_subsequences, weights_vectors):
         if self.training_mode == 'init_representation_learning_phase_2':
             #safe_gram_loss = torch.clamp(sheaf_gram_loss, min=1e-6)
-            loss = mine_loss * sheaf_gram_loss# torch.log(safe_gram_loss)
+            mine_value = self.compute_mine_means(joint_subsequences, marg_subsequences)
+            sheaf_gram_loss = self.balanced_features_gram_loss(weights_vectors)
+            # torch.log(safe_gram_loss)
             #loss = mine_loss * torch.log(sheaf_gram_loss + 1e-9)
-        return loss
+        return - mine_value + sheaf_gram_loss
    
     def calculate_loop_increments(self, batch_size):
        
@@ -1861,10 +1868,9 @@ class RWKV(pl.LightningModule):
                                 """
                                 
                            
-                            mine_loss = self.compute_mine_means(joint_subsequences, marg_subsequences)
-                            sheaf_gram_loss = self.gram_matrix_loss(weights_vectors)
                             
-                            loss = self.criterion_model(mine_loss, sheaf_gram_loss) 
+                            
+                            loss = self.criterion_model(joint_subsequences, marg_subsequences, weights_vectors) 
                             print('train loss phase 2 = ', loss)
                             net_optimizer.zero_grad()
                             self.manual_backward(loss)
