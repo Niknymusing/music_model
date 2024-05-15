@@ -1183,6 +1183,8 @@ class RWKV(pl.LightningModule):
         self.training_mode = 'init_representation_learning_phase_1' #'init_representation_learning_phase_1''init_representation_learning_1'
 
         self.log_eps = 1e-10
+        self.sheaf_learning_stability = 1
+
         self.monitoring_steps = 16
         self.activations_stats = defaultdict(lambda: deque(maxlen=self.monitoring_steps))
         self.gradients_stats = defaultdict(lambda: deque(maxlen=self.monitoring_steps))
@@ -1473,13 +1475,13 @@ class RWKV(pl.LightningModule):
             return cfg.get("offload_optimizer") or cfg.get("offload_param")
         return False
 
-    def forward(self, x, model_idx = None, head = False):
+    def forward(self, x, model_idx = None, head = False, output = False):
 
-        if model_idx != None and not head:
+        if model_idx != None and not head and not output:
             model = self.rwkv_subnetworks[model_idx]
             layer_norm = self.layer_norms[model_idx]
             
-        elif not head:
+        elif output:
             
             model = self.output_model
             layer_norm = self.layer_norms[self.n_features + 1]
@@ -1511,11 +1513,11 @@ class RWKV(pl.LightningModule):
                 else:
                     x = block(x)
 
-        output = layer_norm(x).squeeze(0)#model.ln_out(x)
+        out = layer_norm(x).squeeze(0)#model.ln_out(x)
 
         if head:
             #print(output[-1:])
-            output = self.controller_head(output[-1:])
+            out = self.controller_head(output[-1:])
             #output = F.softmax(output, dim=-1).squeeze()#.tolist()
             #output = output[-1:,:].squeeze()
         #print(weights)
@@ -1527,25 +1529,26 @@ class RWKV(pl.LightningModule):
         #print('joints.shape, marginals.shape =', joints.shape, marginals.shape)
         #mine_values = self.mine(emb.reshape(64, -1, 1), joints, marginals)
         #loss = - self.mine_calculator.update(mi)
+        if output:
 
-        #if args.head_qk > 0:
-        #    q = self.head_q(x)[:, :T, :]
-        #    k = self.head_k(x)[:, :T, :]
-        #    c = (q @ k.transpose(-2, -1)) * (1.0 / args.head_qk)
-        #    c = c.masked_fill(self.copy_mask[:T, :T] == 0, 0)
+            if args.head_qk > 0:
+                q = self.head_q(x)[:, :T, :]
+                k = self.head_k(x)[:, :T, :]
+                c = (q @ k.transpose(-2, -1)) * (1.0 / args.head_qk)
+                c = c.masked_fill(self.copy_mask[:T, :T] == 0, 0)
 
-        #    if "32" in os.environ["RWKV_FLOAT_MODE"]:
-        #        c = c @ F.one_hot(idx, num_classes=args.vocab_size)
-        #    elif os.environ["RWKV_FLOAT_MODE"] == "fp16":
-        #        c = c @ F.one_hot(idx, num_classes=args.vocab_size).half()
-        #    elif os.environ["RWKV_FLOAT_MODE"] == "bf16":
-        #        c = c @ F.one_hot(idx, num_classes=args.vocab_size).bfloat16()
+                if "32" in os.environ["RWKV_FLOAT_MODE"]:
+                    c = c @ F.one_hot(idx, num_classes=args.vocab_size)
+                elif os.environ["RWKV_FLOAT_MODE"] == "fp16":
+                    c = c @ F.one_hot(idx, num_classes=args.vocab_size).half()
+                elif os.environ["RWKV_FLOAT_MODE"] == "bf16":
+                    c = c @ F.one_hot(idx, num_classes=args.vocab_size).bfloat16()
 
-        #    x = self.head(x) + c
-        #else:
-        #    x = self.head(x)
+                out = self.head(x) + c
+            else:
+                out = self.head(x)
 
-        return output
+        return out
    
     # vectorize below function across the full sequence formed by concattenating all subsequences of a particular feature idx
    
@@ -1684,14 +1687,21 @@ class RWKV(pl.LightningModule):
     def balanced_features_gram_loss(self, input_matrix):
         return - self.cdist_balanced_loss(input_matrix)
 
-    def criterion_model(self, joint_subsequences, marg_subsequences, weights_vectors):
+    def criterion_model(self, joint_subsequences, marg_subsequences, weights_vectors, reward_signal = None):
         if self.training_mode == 'init_representation_learning_phase_2':
             #safe_gram_loss = torch.clamp(sheaf_gram_loss, min=1e-6)
             mine_value = self.compute_mine_means(joint_subsequences, marg_subsequences)
             sheaf_gram_loss = self.balanced_features_gram_loss(weights_vectors)
+            loss = - mine_value + self.sheaf_learning_stability * sheaf_gram_loss
             # torch.log(safe_gram_loss)
             #loss = mine_loss * torch.log(sheaf_gram_loss + 1e-9)
-        return - mine_value + sheaf_gram_loss
+        if self.training_mode == 'semisupervised':
+            mine_value = self.compute_mine_means(joint_subsequences, marg_subsequences)
+            sheaf_gram_loss = self.balanced_features_gram_loss(weights_vectors)
+            loss = - mine_value + self.sheaf_learning_stability * sheaf_gram_loss + reward_signal
+            
+
+        return loss
    
     def calculate_loop_increments(self, batch_size):
        
@@ -1715,7 +1725,6 @@ class RWKV(pl.LightningModule):
     def training_step(self, batch, batch_idx):
 
         ti = time.time()
-        # Unpack the batch
        
         try:
 
@@ -1723,37 +1732,15 @@ class RWKV(pl.LightningModule):
                 print('phase1 loop started')
                 steps, n_videos = 0, 0
                 net_optimizer, clipper = self.optimizers()
-                #net_optimizer = optimizers[0]
-                #mine_optimizer = optimizers[1]
-                #clipper = optimizers[1]
-                #lr_schedulers = self.lr_schedulers()
-                #net_lr_scheduler = lr_schedulers[0]['scheduler']
-                #mine_lr_scheduler = lr_schedulers[1]['scheduler']
-                #net_optimizer, mine_optimizer, net_lr_scheduler, mine_lr_scheduler = self.optimizers()
                 pose_batch, audio_batch, audio_marginals = batch
                 pose_batch, audio_batch, audio_marginals = pose_batch.view(-1, 33, 3), audio_batch.view(-1, 1, 2048), audio_marginals.view(-1, 1, 2048)
-                # Reshape tensors to match the required input shapes for the forward pass
-                #print(pose_batch.shape, audio_batch.shape, audio_ahead_joints, audio_ahead_marginals)
-                #print('pose_batch.shape, audio_batch.shape, audio_marginals.shape = ', pose_batch.shape, audio_batch.shape, audio_marginals.shape)
                 pose_emb_seq, audio_emb_seq = self.pose_encoder(pose_batch), self.audio_encoder(audio_batch) # pick out unique encoder feature and sequence start/stop in batch for each idx here                  
-               
-               
-                #with torch.no_grad(): # no grad since outputs should be used only in mine computation, but mine parameter update are separate from model param update
                 batch_len = audio_emb_seq.shape[0]
-                #encoded_audio_joints, encoded_audio_margs = self.mine_audio_encoder(audio_batch), self.mine_audio_encoder(audio_marginals[batch_len:, :, :]) # ensure in dataset constructor that always len audio_marginals greq batch.shape(0)
                 loop_increments, rand_incr = self.calculate_loop_increments(batch_len)
 
-
                 for idx in range(self.n_features): # len of self.feature_indices list
-                    # Create a tuple of the four tensors and pass it to the model
-                    #joint_mean, marg_mean, count = self.joint_mean, self.marg_mean, self.count
-                    #joint_mean, marg_mean, count = 0, 0, 1
-
-                   
-
+               
                     seq_len, frequency_feature_idx = self.feature_indices[idx]
-                   
-                    #batch_len // seq_len - 2
                     joint_subsequences, marg_subsequences = [], []
                     for i in range(loop_increments[seq_len]):
 
@@ -1763,23 +1750,10 @@ class RWKV(pl.LightningModule):
                         pose_emb = pose_emb_seq[(seq_len*i + rand_incr):seq_len*(i+1)+rand_incr, :]
                         audio_emb = audio_emb_seq[seq_len*i + rand_incr:seq_len*(i+1)+rand_incr, feature_idx:feature_idx_step]
                         emb = torch.concat((pose_emb, audio_emb), dim = 1).unsqueeze(0)# [frequency_feature] is now obtained by indexing into particular parts of the emb array, n_out in encoder resultts in concatenattion of n_out features across the array dimension
-                        #pose_batch = pose_batch[seq_len*i:seq_len*(i+1), :, :]  # Reshape to (64, 33, 3)
-                        #audio_batch = audio_batch[seq_len*i:seq_len*(i+1), :, :]   # Reshape to (64, 1, 2048)
                         audio_ahead_joints = audio_batch[seq_len*(i+1)+rand_incr:seq_len*(i+2)+rand_incr, :, :]
                         audio_ahead_marginals =  audio_marginals[seq_len*(i)+rand_incr:seq_len*(i+1)+rand_incr, :, :]
-                        #print('audio_ahead_joints.shape , audio_ahead_marginals.shape ===========================', audio_ahead_joints.shape , audio_ahead_marginals.shape)
-                        #audio_ahead_joints = encoded_audio_joints[seq_len*(i+1):seq_len*(i+2), feature_idx:feature_idx_step]   # audio target embeddings future step ahead with respect to the pose + audio embs
-                        #audio_ahead_marginals = encoded_audio_margs[seq_len*(i):seq_len*(i+1), feature_idx:feature_idx_step]   # marginally distributed audio sequence, audio tensors from another video
+                        emb = self(emb, idx)
 
-                    #inputs = (pose_batch, audio_batch)
-                         
-                        #print('emb shape before forward:', emb.shape, 'pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape = ', pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape)
-                        emb = self(emb, idx) #.squeeze(0) # model is selcted from time-frequency lattice here by the idx
-                        #print('emb shape in phase 1', emb.shape)
-                    #t_output = self.apply_mine_net(emb, audio_ahead_joints, audio_ahead_marginals, idx)
-                        #print('_____________________emb, audio_ahead_joints, audio_ahead_marginals shapes = ', emb.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape)
-                        #try:
-                        #if emb.shape == torch.Size([1, 128]) and audio_ahead_joints.shape == torch.Size([seq_len, 1, 2048]) and audio_ahead_marginals.shape == torch.Size([seq_len, 1, 2048]):
                         if emb.shape == torch.Size([seq_len, 128]) and audio_ahead_joints.shape == torch.Size([seq_len, 1, 2048]) and audio_ahead_marginals.shape == torch.Size([seq_len, 1, 2048]):
                             t_joints, t_margs = self.mine_nets[idx](emb, audio_ahead_joints, audio_ahead_marginals)
                             joint_subsequences.append(t_joints)
@@ -1793,18 +1767,7 @@ class RWKV(pl.LightningModule):
                     net_optimizer.step()          
                     steps +=1
                 print('steps phase 1 = ', steps)
-                #self.training_mode = 'init_representation_learning_phase_2'
-
-                            #joint_mean, marg_mean, count = self.compute_mine_means(t_joints, t_margs, joint_mean, marg_mean, count, seq_len)
-                           
-                            #
-                            #t_joints, t_margs, joint_mean, marg_mean, count, seq_len
-                            #print('//////// LOSS ///////////', loss)
-                        #except RuntimeError:
-                            #print('RuntimeError in self.compute_mine_energy_loss, shapes of emb, audio_ahead_joints, audio_ahead_marginals, idx : ', emb.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape, idx)
-                       
-                    # some extra pre-cautions (besides gradient-clipping in mine networks), if mine values goes unbounded
-                    #self.compute_mine(joint_mean, marg_mean)
+               
                    
             if self.training_mode == 'init_representation_learning_phase_2':
                         print('phase2 loop started')
@@ -1814,17 +1777,9 @@ class RWKV(pl.LightningModule):
                         pose_batch, audio_batch, audio_marginals = batch
                         pose_batch, audio_batch, audio_marginals = pose_batch.view(-1, 33, 3), audio_batch.view(-1, 1, 2048), audio_marginals.view(-1, 1, 2048)
                         pose_emb_seq, audio_emb_seq = self.pose_encoder(pose_batch), self.audio_encoder(audio_batch) # pick out unique encoder feature and sequence start/stop in batch for each idx here                  
-                        #print('audio_emb_seq.shape in phase 2 = ', audio_emb_seq.shape)
                         batch_len = audio_emb_seq.shape[0]
-                        #print('current batch len phase 1 = ', batch_len)
-                        #loop_increment = batch_len - 2*64 - 1
                         loop_increments, rand_incr = self.calculate_loop_increments(batch_len)
-                        #rand_incr = 0  
                         loop_increment = batch_len - 3*64 - 1 - rand_incr
-                        # comparing sheaf (global structure) loss term and individual mine (local loss terms) . Variables : nr steps and corresponding step sizes,
-                        #, relative weights of terms
-                        # method: variational methods, compare local structure to global structure  
-
 
                         for i in range(loop_increment - rand_incr):
                            
@@ -1842,33 +1797,22 @@ class RWKV(pl.LightningModule):
 
                                 pose_emb = pose_emb_seq[(i + rand_incr):seq_len + (i)+rand_incr, :]
                                 audio_emb = audio_emb_seq[i + rand_incr:seq_len + (i)+rand_incr, feature_idx:feature_idx_step]
-                                #print('audio_emb.shape, pose_emb.shape ---',audio_emb.shape, pose_emb.shape)
                                 emb = torch.concat((pose_emb, audio_emb), dim = 1).unsqueeze(0)# [frequency_feature] is now obtained by indexing into particular parts of the emb array, n_out in encoder resultts in concatenattion of n_out features across the array dimension
                                 audio_ahead_joints = audio_batch[i + 1 + rand_incr:seq_len + (i+1)+rand_incr, :, :]
                                 audio_ahead_marginals =  audio_marginals[i + rand_incr:seq_len + (i)+rand_incr, :, :]
-                                # compute the MINE values for current rwkv embedding w.r.t. the current (pose, audio_buffer)
-                                
-                                
-                                #emb = self(emb, idx)
-
                                 weights = self.run_controller_network(x)
                                 emb = self.run_output_model(weights, emb)
                                 weights_vectors.append(weights)
-                                #print('model idx = ', idx, ' in phase 2, shapes of emb, audio_ahead_joints, audio_ahead_marginals =', emb.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape)
                                 t_joints, t_margs = self.mine_nets[idx](emb, audio_ahead_joints, audio_ahead_marginals)
                                 joint_subsequences.append(t_joints)
                                 marg_subsequences.append(t_margs)
 
                                 idx += 1
-                                #print(x)
                                 """weights = self.run_controller_network(x)
                                 final_out_emb = self.run_output_model(weights, x)
                                 weights_vectors.append(weights)
                                 outputs.append(final_out_emb)
                                 """
-                                
-                           
-                            
                             
                             loss = self.criterion_model(joint_subsequences, marg_subsequences, weights_vectors) 
                             print('train loss phase 2 = ', loss)
@@ -1877,28 +1821,6 @@ class RWKV(pl.LightningModule):
                             clipper.step()
                             net_optimizer.step()  
                             steps +=1
-
-                            
-
-                    # compute outputrun here obtaining sheaf loss / gram matrix loss for the controller network
-                    # then compute MINE loss on output model resulting from the addition of mine_model's state dicts
-
-                    
-                   
-                        # Perform optimization steps
-                    #mine_optimizer.zero_grad()
-                    #self.manual_backward(loss, retain_graph=True)
-                    #mine_optimizer.step()
-                   
-                    #net_lr_scheduler.step()
-                    #mine_lr_scheduler.step()
-
-    # Optionally log values here
-                    #current_lr_net = net_lr_scheduler.get_last_lr()[0]
-                    #current_lr_mine = mine_lr_scheduler.get_last_lr()[0]
-                    #self.log('current_learning_rate_net', current_lr_net)
-                    #self.log('current_learning_rate_mine', current_lr_mine)
-                        #self.mine_values[idx].append(loss)
                    
                         print('batch_len =', batch_len, ' nr of chunks for seq len', 'and feature ',', loss ===================' , loss)
                         self.log('train_loss', loss)
@@ -1908,8 +1830,6 @@ class RWKV(pl.LightningModule):
                         print('steps phase 2 = ', steps)
                         self.training_mode = 'init_representation_learning_phase_1'
 
-
-                    #self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         except torch.cuda.CudaError as e:
                 if "out of memory" in str(e):
                     memory_summary = torch.cuda.memory_summary(abbreviated=True)
@@ -1939,39 +1859,16 @@ class RWKV(pl.LightningModule):
             if self.training_mode == 'init_representation_learning_phase_1':
                 print('phase1 loop started')
                 steps, n_videos = 0, 0
-                #net_optimizer, clipper = self.optimizers()
-                #net_optimizer = optimizers[0]
-                #mine_optimizer = optimizers[1]
-                #clipper = optimizers[1]
-                #lr_schedulers = self.lr_schedulers()
-                #net_lr_scheduler = lr_schedulers[0]['scheduler']
-                #mine_lr_scheduler = lr_schedulers[1]['scheduler']
-                #net_optimizer, mine_optimizer, net_lr_scheduler, mine_lr_scheduler = self.optimizers()
                 pose_batch, audio_batch, audio_marginals = batch
                 pose_batch, audio_batch, audio_marginals = pose_batch.view(-1, 33, 3), audio_batch.view(-1, 1, 2048), audio_marginals.view(-1, 1, 2048)
-                # Reshape tensors to match the required input shapes for the forward pass
-                #print(pose_batch.shape, audio_batch.shape, audio_ahead_joints, audio_ahead_marginals)
-                #print('pose_batch.shape, audio_batch.shape, audio_marginals.shape = ', pose_batch.shape, audio_batch.shape, audio_marginals.shape)
                 pose_emb_seq, audio_emb_seq = self.pose_encoder(pose_batch), self.audio_encoder(audio_batch) # pick out unique encoder feature and sequence start/stop in batch for each idx here                  
-               
-               
-                #with torch.no_grad(): # no grad since outputs should be used only in mine computation, but mine parameter update are separate from model param update
                 batch_len = audio_emb_seq.shape[0]
-                print('current batch len phase 1 = ', batch_len)
-                #encoded_audio_joints, encoded_audio_margs = self.mine_audio_encoder(audio_batch), self.mine_audio_encoder(audio_marginals[batch_len:, :, :]) # ensure in dataset constructor that always len audio_marginals greq batch.shape(0)
                 loop_increments, rand_incr = self.calculate_loop_increments(batch_len)
 
 
                 for idx in range(self.n_features): # len of self.feature_indices list
-                    # Create a tuple of the four tensors and pass it to the model
-                    #joint_mean, marg_mean, count = self.joint_mean, self.marg_mean, self.count
-                    #joint_mean, marg_mean, count = 0, 0, 1
-
-                   
 
                     seq_len, frequency_feature_idx = self.feature_indices[idx]
-                   
-                    #batch_len // seq_len - 2
                     joint_subsequences, marg_subsequences = [], []
                     for i in range(loop_increments[seq_len]):
 
@@ -1980,67 +1877,32 @@ class RWKV(pl.LightningModule):
 
                         pose_emb = pose_emb_seq[(seq_len*i + rand_incr):seq_len*(i+1)+rand_incr, :]
                         audio_emb = audio_emb_seq[seq_len*i + rand_incr:seq_len*(i+1)+rand_incr, feature_idx:feature_idx_step]
-                        #print('audio_emb_seq.shape in phase 1 = ', audio_emb_seq.shape)
-                        #print('audio_emb.shape, pose_emb.shape ---',audio_emb.shape, pose_emb.shape)
                         emb = torch.concat((pose_emb, audio_emb), dim = 1).unsqueeze(0)# [frequency_feature] is now obtained by indexing into particular parts of the emb array, n_out in encoder resultts in concatenattion of n_out features across the array dimension
-                        #pose_batch = pose_batch[seq_len*i:seq_len*(i+1), :, :]  # Reshape to (64, 33, 3)
-                        #audio_batch = audio_batch[seq_len*i:seq_len*(i+1), :, :]   # Reshape to (64, 1, 2048)
                         audio_ahead_joints = audio_batch[seq_len*(i+1)+rand_incr:seq_len*(i+2)+rand_incr, :, :]
                         audio_ahead_marginals =  audio_marginals[seq_len*(i)+rand_incr:seq_len*(i+1)+rand_incr, :, :]
-                        #print('audio_ahead_joints.shape , audio_ahead_marginals.shape ===========================', audio_ahead_joints.shape , audio_ahead_marginals.shape)
-                        #audio_ahead_joints = encoded_audio_joints[seq_len*(i+1):seq_len*(i+2), feature_idx:feature_idx_step]   # audio target embeddings future step ahead with respect to the pose + audio embs
-                        #audio_ahead_marginals = encoded_audio_margs[seq_len*(i):seq_len*(i+1), feature_idx:feature_idx_step]   # marginally distributed audio sequence, audio tensors from another video
-
-                    #inputs = (pose_batch, audio_batch)
-                         
-                        #print('emb shape before forward:', emb.shape, 'pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape = ', pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape)
-                        emb = self(emb, idx) #.squeeze(0) # model is selcted from time-frequency lattice here by the idx
-                        #print(emb)
-                    #t_output = self.apply_mine_net(emb, audio_ahead_joints, audio_ahead_marginals, idx)
-                        #print('_____________________emb, audio_ahead_joints, audio_ahead_marginals shapes = ', emb.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape)
-                        #try:
-                        #if emb.shape == torch.Size([1, 128]) and audio_ahead_joints.shape == torch.Size([seq_len, 1, 2048]) and audio_ahead_marginals.shape == torch.Size([seq_len, 1, 2048]):
+                        emb = self(emb, idx) 
                         if emb.shape == torch.Size([seq_len, 128]) and audio_ahead_joints.shape == torch.Size([seq_len, 1, 2048]) and audio_ahead_marginals.shape == torch.Size([seq_len, 1, 2048]):
                             t_joints, t_margs = self.mine_nets[idx](emb, audio_ahead_joints, audio_ahead_marginals)
-                            #print('model idx = ', idx, ' in phase 1, shapes of emb, audio_ahead_joints, audio_ahead_marginals =', emb.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape)
                             joint_subsequences.append(t_joints)
                             marg_subsequences.append(t_margs)
                    
                     val_loss = self.compute_mine_means(joint_subsequences, marg_subsequences)    
-                    print('phase 1 val_loss = ', val_loss)
-                    #net_optimizer.zero_grad()
-                    #self.manual_backward(val_loss)
-                    #clipper.step()
-                    #net_optimizer.step()          
+                    print('phase 1 val_loss = ', val_loss)    
                     steps +=1
                 print('steps phase 1 = ', steps)
-                #self.training_mode = 'init_representation_learning_phase_2'
-
-                            #joint_mean, marg_mean, count = self.compute_mine_means(t_joints, t_margs, joint_mean, marg_mean, count, seq_len)
-                           
-                            #
-                            #t_joints, t_margs, joint_mean, marg_mean, count, seq_len
-                            #print('//////// LOSS ///////////', loss)
-                        #except RuntimeError:
-                            #print('RuntimeError in self.compute_mine_energy_loss, shapes of emb, audio_ahead_joints, audio_ahead_marginals, idx : ', emb.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape, idx)
-                       
-                    # some extra pre-cautions (besides gradient-clipping in mine networks), if mine values goes unbounded
-                    #self.compute_mine(joint_mean, marg_mean)
+                
                    
             if self.training_mode == 'init_representation_learning_phase_2':
                         print('phase2 loop started')
                         steps, n_videos = 0, 0
-                        net_optimizer, clipper = self.optimizers()
+                        #net_optimizer, clipper = self.optimizers()
 
                         pose_batch, audio_batch, audio_marginals = batch
                         pose_batch, audio_batch, audio_marginals = pose_batch.view(-1, 33, 3), audio_batch.view(-1, 1, 2048), audio_marginals.view(-1, 1, 2048)
                         pose_emb_seq, audio_emb_seq = self.pose_encoder(pose_batch), self.audio_encoder(audio_batch) # pick out unique encoder feature and sequence start/stop in batch for each idx here                  
-                        #print('audio_emb_seq.shape in phase 2 = ', audio_emb_seq.shape)
                         batch_len = audio_emb_seq.shape[0]
                         print('current batch len phase 1 = ', batch_len)
-                        #loop_increment = batch_len - 2*64 - 1
                         loop_increments, rand_incr = self.calculate_loop_increments(batch_len)
-                        #rand_incr = 0  
                         loop_increment = batch_len - 3*64 - 1 - rand_incr
                         # comparing sheaf (global structure) loss term and individual mine (local loss terms) . Variables : nr steps and corresponding step sizes,
                         #, relative weights of terms
@@ -2063,36 +1925,25 @@ class RWKV(pl.LightningModule):
 
                                 pose_emb = pose_emb_seq[(i + rand_incr):seq_len + (i)+rand_incr, :]
                                 audio_emb = audio_emb_seq[i + rand_incr:seq_len + (i)+rand_incr, feature_idx:feature_idx_step]
-                                #print('audio_emb.shape, pose_emb.shape ---',audio_emb.shape, pose_emb.shape)
                                 emb = torch.concat((pose_emb, audio_emb), dim = 1).unsqueeze(0)# [frequency_feature] is now obtained by indexing into particular parts of the emb array, n_out in encoder resultts in concatenattion of n_out features across the array dimension
                                 audio_ahead_joints = audio_batch[i + 1 + rand_incr:seq_len + (i+1)+rand_incr, :, :]
                                 audio_ahead_marginals =  audio_marginals[i + rand_incr:seq_len + (i)+rand_incr, :, :]
-                                # compute the MINE values for current rwkv embedding w.r.t. the current (pose, audio_buffer)
-                                
-                                
-                                #emb = self(emb, idx)
-
                                 weights = self.run_controller_network(x)
                                 emb = self.run_output_model(weights, emb)
                                 weights_vectors.append(weights)
-                                #print('model idx = ', idx, ' in phase 2, shapes of emb, audio_ahead_joints, audio_ahead_marginals =', emb.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape)
                                 t_joints, t_margs = self.mine_nets[idx](emb, audio_ahead_joints, audio_ahead_marginals)
                                 joint_subsequences.append(t_joints)
                                 marg_subsequences.append(t_margs)
 
                                 idx += 1
-                                #print(x)
                                 """weights = self.run_controller_network(x)
                                 final_out_emb = self.run_output_model(weights, x)
                                 weights_vectors.append(weights)
                                 outputs.append(final_out_emb)
                                 """
-                                
+                            
                            
-                            mine_loss = self.compute_mine_means(joint_subsequences, marg_subsequences)
-                            sheaf_gram_loss = self.gram_matrix_loss(weights_vectors)
-                           
-                            val_loss = self.criterion_model(mine_loss, sheaf_gram_loss) # to be implemented
+                            val_loss = self.criterion_model(joint_subsequences, marg_subsequences, weights_vectors) # to be implemented
                             print('phase 2 val_loss = ', val_loss, 'step nr ', steps)
                         self.training_mode = 'init_representation_learning_phase_1'           
 

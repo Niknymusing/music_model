@@ -81,3 +81,31 @@ for epoch in range(5):
     # Print loss for tracking
     print(f"Epoch [{epoch+1}/5], Loss: {loss.item():.4f}")
 
+
+
+
+
+
+
+
+import time
+
+def normalize_to_unit_circle(tensor):
+    # Calculate the norm (2-norm) of the tensor treated as a vector of complex numbers
+    norm = torch.linalg.norm(tensor)
+    # Normalize the tensor by its norm
+    normalized_tensor = tensor / norm
+    return normalized_tensor
+
+# Example usage:
+torch.manual_seed(42)
+random_tensor = torch.randn(1024, 1024)
+t = time.time()
+mapped_tensor = normalize_to_unit_circle(random_tensor)
+t = time.time() - t 
+print("Mapped Tensor:", mapped_tensor, 'time = ', t)
+
+# Verify properties
+# Check if the sum of squares of moduli equals one
+sum_of_squares = torch.sum(torch.abs(mapped_tensor)**2)
+print("Sum of squares of moduli:", sum_of_squares)
