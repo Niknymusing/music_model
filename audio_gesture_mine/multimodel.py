@@ -944,7 +944,16 @@ class MINE_net(nn.Module):
         return joint_t, marg_t
 
 
-
+class ModelWeighter(nn.Module):
+    def __init__(self, input_dim = 256, n_weights = 16, emb_dim = 8192):
+        super(ModelWeighter, self).__init__()
+        emb_dim = emb_dim
+        self.l1 = nn.Linear(input_dim, emb_dim)
+        self.l2 = nn.Linear(emb_dim, n_weights)
+    def forward(self, x):
+        x = F.relu_(self.l1(x))
+        x = F.relu_(self.l2(x))
+        return x.flatten()
 
 
 class LoggedModule(nn.Module):
@@ -1143,9 +1152,9 @@ class RWKV(pl.LightningModule):
             for _ in range(self.n_features)
         ])
        
-
-        self.controller_network = nn.ModuleList([Block(self.args_head, i) for i in range(self.args_head.n_layer)])
-        self.controller_head = nn.Linear(self.embedding_dim * self.n_frequency_features, self.n_features)
+        self.model_weighter = ModelWeighter(input_dim = args.n_embd, n_weights = self.n_features)
+        #self.controller_network = nn.ModuleList([Block(self.args_head, i) for i in range(self.args_head.n_layer)])
+        #self.controller_head = nn.Linear(self.embedding_dim * self.n_frequency_features, self.n_features)
 
         self.output_model = nn.ModuleList([Block(args, i) for i in range(args.n_layer)])
         
@@ -1642,7 +1651,7 @@ class RWKV(pl.LightningModule):
         #print(weights)
         #print('weights.shape :::::::::::::::::' , weights.shape)
         return weights[-1:,:].squeeze()"""
-        y = self(x, head=True)
+        y = self.model_weighter(x)#self(x, head=True)
         weights = F.softmax(torch.clamp(y, min=1e-5))
         print(weights)
         return weights.squeeze()
@@ -1770,6 +1779,129 @@ class RWKV(pl.LightningModule):
                
                    
             if self.training_mode == 'init_representation_learning_phase_2':
+                        print('phase2 loop started')
+                        steps, n_videos = 0, 0
+                        net_optimizer, clipper = self.optimizers()
+
+                        pose_batch, audio_batch, audio_marginals = batch
+                        pose_batch, audio_batch, audio_marginals = pose_batch.view(-1, 33, 3), audio_batch.view(-1, 1, 2048), audio_marginals.view(-1, 1, 2048)
+                        pose_emb_seq, audio_emb_seq = self.pose_encoder(pose_batch), self.audio_encoder(audio_batch) # pick out unique encoder feature and sequence start/stop in batch for each idx here                  
+                        batch_len = audio_emb_seq.shape[0]
+                        loop_increments, rand_incr = self.calculate_loop_increments(batch_len)
+                        loop_increment = batch_len - 3*64 - 1 - rand_incr
+
+                        for i in range(loop_increment - rand_incr):
+                           
+                            input_chunk = audio_emb_seq[( i + self.time_scales[-1] + rand_incr):(self.time_scales[-1] + (i + 1) + rand_incr),:]
+                            masked_inputs = self.apply_masks(input_chunk)
+                            weights_vectors, outputs = [], []
+                            idx = 0
+                            for x in masked_inputs:
+
+                                seq_len, frequency_feature_idx = self.feature_indices[idx]
+                                joint_subsequences, marg_subsequences = [], []
+
+                                feature_idx = self.embdim_step * frequency_feature_idx
+                                feature_idx_step = self.embdim_step * (frequency_feature_idx + 1)
+
+                                pose_emb = pose_emb_seq[(i + rand_incr):seq_len + (i)+rand_incr, :]
+                                audio_emb = audio_emb_seq[i + rand_incr:seq_len + (i)+rand_incr, feature_idx:feature_idx_step]
+                                emb = torch.concat((pose_emb, audio_emb), dim = 1).unsqueeze(0)# [frequency_feature] is now obtained by indexing into particular parts of the emb array, n_out in encoder resultts in concatenattion of n_out features across the array dimension
+                                audio_ahead_joints = audio_batch[i + 1 + rand_incr:seq_len + (i+1)+rand_incr, :, :]
+                                audio_ahead_marginals =  audio_marginals[i + rand_incr:seq_len + (i)+rand_incr, :, :]
+                                weights = self.run_controller_network(x)
+                                emb = self.run_output_model(weights, emb)
+                                weights_vectors.append(weights)
+                                t_joints, t_margs = self.mine_nets[idx](emb, audio_ahead_joints, audio_ahead_marginals)
+                                joint_subsequences.append(t_joints)
+                                marg_subsequences.append(t_margs)
+
+                                idx += 1
+                                """weights = self.run_controller_network(x)
+                                final_out_emb = self.run_output_model(weights, x)
+                                weights_vectors.append(weights)
+                                outputs.append(final_out_emb)
+                                """
+                            
+                            loss = self.criterion_model(joint_subsequences, marg_subsequences, weights_vectors) 
+                            print('train loss phase 2 = ', loss)
+                            net_optimizer.zero_grad()
+                            self.manual_backward(loss)
+                            clipper.step()
+                            net_optimizer.step()  
+                            steps +=1
+                   
+                        print('batch_len =', batch_len, ' nr of chunks for seq len', 'and feature ',', loss ===================' , loss)
+                        self.log('train_loss', loss)
+                                
+                        if self.hooks:
+                            self.analyze_statistics()
+                        print('steps phase 2 = ', steps)
+                        self.training_mode = 'init_representation_learning_phase_1'
+                
+
+            if self.training_mode == 'generative_data_reconstruction':
+                        print('phase2 loop started')
+                        steps, n_videos = 0, 0
+                        net_optimizer, clipper = self.optimizers()
+
+                        pose_batch, audio_batch, audio_marginals = batch
+                        pose_batch, audio_batch, audio_marginals = pose_batch.view(-1, 33, 3), audio_batch.view(-1, 1, 2048), audio_marginals.view(-1, 1, 2048)
+                        pose_emb_seq, audio_emb_seq = self.pose_encoder(pose_batch), self.audio_encoder(audio_batch) # pick out unique encoder feature and sequence start/stop in batch for each idx here                  
+                        batch_len = audio_emb_seq.shape[0]
+                        loop_increments, rand_incr = self.calculate_loop_increments(batch_len)
+                        loop_increment = batch_len - 3*64 - 1 - rand_incr
+
+                        for i in range(loop_increment - rand_incr):
+                           
+                            input_chunk = audio_emb_seq[( i + self.time_scales[-1] + rand_incr):(self.time_scales[-1] + (i + 1) + rand_incr),:]
+                            masked_inputs = self.apply_masks(input_chunk)
+                            weights_vectors, outputs = [], []
+                            idx = 0
+                            for x in masked_inputs:
+
+                                seq_len, frequency_feature_idx = self.feature_indices[idx]
+                                joint_subsequences, marg_subsequences = [], []
+
+                                feature_idx = self.embdim_step * frequency_feature_idx
+                                feature_idx_step = self.embdim_step * (frequency_feature_idx + 1)
+
+                                pose_emb = pose_emb_seq[(i + rand_incr):seq_len + (i)+rand_incr, :]
+                                audio_emb = audio_emb_seq[i + rand_incr:seq_len + (i)+rand_incr, feature_idx:feature_idx_step]
+                                emb = torch.concat((pose_emb, audio_emb), dim = 1).unsqueeze(0)# [frequency_feature] is now obtained by indexing into particular parts of the emb array, n_out in encoder resultts in concatenattion of n_out features across the array dimension
+                                audio_ahead_joints = audio_batch[i + 1 + rand_incr:seq_len + (i+1)+rand_incr, :, :]
+                                audio_ahead_marginals =  audio_marginals[i + rand_incr:seq_len + (i)+rand_incr, :, :]
+                                weights = self.run_controller_network(x)
+                                emb = self.run_output_model(weights, emb)
+                                weights_vectors.append(weights)
+                                t_joints, t_margs = self.mine_nets[idx](emb, audio_ahead_joints, audio_ahead_marginals)
+                                joint_subsequences.append(t_joints)
+                                marg_subsequences.append(t_margs)
+
+                                idx += 1
+                                """weights = self.run_controller_network(x)
+                                final_out_emb = self.run_output_model(weights, x)
+                                weights_vectors.append(weights)
+                                outputs.append(final_out_emb)
+                                """
+                            
+                            loss = self.criterion_model(joint_subsequences, marg_subsequences, weights_vectors) 
+                            print('train loss phase 2 = ', loss)
+                            net_optimizer.zero_grad()
+                            self.manual_backward(loss)
+                            clipper.step()
+                            net_optimizer.step()  
+                            steps +=1
+                   
+                        print('batch_len =', batch_len, ' nr of chunks for seq len', 'and feature ',', loss ===================' , loss)
+                        self.log('train_loss', loss)
+                                
+                        if self.hooks:
+                            self.analyze_statistics()
+                        print('steps phase 2 = ', steps)
+                        self.training_mode = 'init_representation_learning_phase_1'
+            
+            if self.training_mode == 'RL post training':
                         print('phase2 loop started')
                         steps, n_videos = 0, 0
                         net_optimizer, clipper = self.optimizers()

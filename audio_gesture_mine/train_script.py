@@ -506,7 +506,7 @@ args_head = Namespace(n_time_scales = 4,
     n_embd=256,
     embedding_dim = 256,
     time_scales = [1, 4, 16, 64],
-    vocab_size=100,  # currently not training the head weights of the rwkv just the embedding MI to the inputs, so can set this to something small for now
+    vocab_size=16,  # currently not training the head weights of the rwkv just the embedding MI to the inputs, so can set this to something small for now
     n_layer=8,
     dim_att=128,
     dim_ffn=256,
