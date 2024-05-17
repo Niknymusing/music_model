@@ -1,0 +1,24 @@
+ninja_required_version = 1.3
+cxx = c++
+
+cflags = -Wno-unused-result -Wsign-compare -Wunreachable-code -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -I/Users/nikny/miniconda3/envs/musicai/include -arch arm64 -I/Users/nikny/miniconda3/envs/musicai/include -arch arm64 -I/Users/nikny/miniconda3/envs/musicai/lib/python3.8/site-packages/torch/include -I/Users/nikny/miniconda3/envs/musicai/lib/python3.8/site-packages/torch/include/torch/csrc/api/include -I/Users/nikny/miniconda3/envs/musicai/lib/python3.8/site-packages/torch/include/ATen -I/Users/nikny/miniconda3/envs/musicai/lib/python3.8/site-packages/torch/include/c10 -I/Users/nikny/miniconda3/envs/musicai/lib/python3.8/site-packages/torch/include/caffe2 -I/Users/nikny/miniconda3/envs/musicai/include/python3.8 -I/Users/nikny/miniconda3/envs/musicai/lib/python3.8/site-packages/torch/include -I/Users/nikny/miniconda3/envs/musicai/lib/python3.8/site-packages/torch/include/torch/csrc/api/include -I/Users/nikny/miniconda3/envs/musicai/lib/python3.8/site-packages/torch/include/TH -I/Users/nikny/miniconda3/envs/musicai/lib/python3.8/site-packages/torch/include/THC -I/Users/nikny/miniconda3/envs/musicai/include/python3.8 -c
+post_cflags = -std=c++17 -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE="_clang"' '-DPYBIND11_STDLIB="_libcpp"' '-DPYBIND11_BUILD_ABI="_cxxabi1002"' -DTORCH_EXTENSION_NAME=weighted_sum_update_cpu -D_GLIBCXX_USE_CXX11_ABI=0
+cuda_dlink_post_cflags = 
+ldflags = 
+
+rule compile
+  command = $cxx -MMD -MF $out.d $cflags -c $in -o $out $post_cflags
+  depfile = $out.d
+  deps = gcc
+
+
+
+
+
+build /Users/nikny/mm/music_model/audio_gesture_mine/build/temp.macosx-11.1-arm64-cpython-38/weighted_sum_update_cpu.o: compile /Users/nikny/mm/music_model/audio_gesture_mine/weighted_sum_update_cpu.cpp
+
+
+
+
+
+
