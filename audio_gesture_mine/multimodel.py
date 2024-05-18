@@ -1197,9 +1197,10 @@ class RWKV(pl.LightningModule):
         self.monitoring_steps = 16
         self.activations_stats = defaultdict(lambda: deque(maxlen=self.monitoring_steps))
         self.gradients_stats = defaultdict(lambda: deque(maxlen=self.monitoring_steps))
-        self.attach_hooks()
+        
         self.hooks = False##False#True#
         if self.hooks:
+            self.attach_hooks()
             self.apply_hooks()
 
 
