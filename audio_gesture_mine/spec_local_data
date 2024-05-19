@@ -1,0 +1,260 @@
+Personalised tokenisation of music data with adaptive bias to human body motion 
+
+While LLMs are being successfully applied to generate auditively convincing musical audio signals, the generated results lacks perceivable human emotional intent and is generally conceived by human listeners as non-personal or dead. 
+
+
+We are creating the following python command-line application to be run on a M2 Macbook pro.
+
+Use case / features :
+
+- Record syncrhonised audio and human body motion data using the computer audio and camera input devices
+- after recording is completed, compile the recorded data to pytorch pytorch tensros and add them to a local DeepLake dataset. The data-sample compiled and added to the dataset after the recording has been stopped consists of a tuple of tensors (audio_tensor, motion_tensor, audio_ahead, audio_marginal)
+- add command line options upon starting the app to activate a check on the validity and fidelity of the recorded input data locally using ffmpeg.
+- validate the validity and fidelity of the tensors prior to adding them to the DeepLake dataset, and after adding them to the dataset do a check that the resulting DeepLake dataset is in expected state after appending the new data.
+
+The command line application should be started by simple typing mima --flag1 --flag2 etc, whereupon also a local miniconda env named 'musicai' (containing all dependencies) should be activated
+
+As a starting point we have this python code below, which uses pyaudio and mediapipe to record audio and motion data. It needs to be adapted to form the deep lake dataset, and also be adapted to have a command line interface with the necessary option flags. The recording functionality can essentially be kept, but the elaborate formation of the dataset needs to be rebuilt to conform with the Deep Lake framework:
+
+
+
+import pyaudio
+import numpy as np
+import cv2
+import mediapipe as mp
+import torch
+import datetime
+import os
+from multiscale_mine import Multiscale_MINE
+from multiscale_mine import Multiscale_MINE_test
+from multiscale_mine import GRUCell
+from multiscale_mine import RNNCell
+import random
+import torch.optim as optim
+import torch.nn as nn 
+from torch.nn import init
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+
+def get_marginal_samples(current_session_dir, audio_data_tensors, audioposes_data_dir='audioposes_data'):
+    all_sessions = [d for d in os.listdir(audioposes_data_dir) if os.path.isdir(os.path.join(audioposes_data_dir, d))]
+    other_sessions = [s for s in all_sessions if s != current_session_dir]
+
+    marginal_poses = None
+    while marginal_poses is None or len(marginal_poses) < len(audio_data_tensors):
+        selected_session = random.choice(other_sessions)
+        poses_path = os.path.join(audioposes_data_dir, selected_session, 'poses_tensors.pt')
+
+        if os.path.exists(poses_path):
+            new_poses = torch.load(poses_path)
+            if marginal_poses is None:
+                marginal_poses = new_poses
+            else:
+                marginal_poses = torch.cat((marginal_poses, new_poses), dim=0)
+
+    return marginal_poses
+
+def generate_joint_and_marginal_samples(audio_data_tensors, poses_tensors, pose_selected_values, poses_marginal_samples, batch_size=32):
+    joint_sample_pairs, marginal_sample_pairs = {}, {}
+    
+    for i in range(len(pose_selected_values)):
+        if 0 < pose_selected_values[i] <= len(poses_tensors):
+            pose_ind = pose_selected_values[i] - 1    # converting to 0-indexed
+            joint_sample_pairs[i] = [audio_data_tensors[i], poses_tensors[pose_ind]]
+    
+    joint_keys = list(joint_sample_pairs.keys())
+    for i in range(len(joint_keys)):
+        idx = joint_keys[i] 
+        marginal_sample_pairs[idx] = [joint_sample_pairs[idx][0], poses_marginal_samples[i]]
+
+    joint_batches, marginal_batches = [], []
+    joint_batch, marginal_batch = [], []
+
+    for idx in joint_keys:
+        joint_batch.append(joint_sample_pairs[idx])
+        marginal_batch.append(marginal_sample_pairs[idx])
+
+        if len(joint_batch) == batch_size:
+            joint_tensor = [torch.stack(samples) for samples in zip(*joint_batch)]
+            marginal_tensor = [torch.stack(samples) for samples in zip(*marginal_batch)]
+            joint_batches.append(joint_tensor)
+            marginal_batches.append(marginal_tensor)
+            joint_batch, marginal_batch = [], []
+
+    if joint_batch:
+        joint_tensor = [torch.stack(samples) for samples in zip(*joint_batch)]
+        marginal_tensor = [torch.stack(samples) for samples in zip(*marginal_batch)]
+        joint_batches.append(joint_tensor)
+        marginal_batches.append(marginal_tensor)
+
+    return joint_batches[:-1], marginal_batches[:-1] 
+
+
+# This cell records realtime audio and mocap from the computer mic and camera and upon stopping the cell compiles the training dataset.
+ 
+#Audio Configuration
+FORMAT = pyaudio.paInt16
+CHANNELS = 1
+RATE = 44100
+CHUNK = 512
+DEVICE_INDEX = 1   # adjust this integer according to your computers available audio input devices
+
+# Initialize PyAudio
+p = pyaudio.PyAudio()
+
+# Define the dictionary
+pose_counter = {0: 0}
+
+# List to save the audio buffers and dictionary values
+saved_audio_data = []
+
+# List to save the poses
+saved_poses = []
+
+# Initialize MediaPipe BlazePose
+mp_pose = mp.solutions.pose
+pose = mp_pose.Pose()
+
+# Define the callback function for audio
+def audio_callback(in_data, frame_count, time_info, status):
+    audio_data = np.frombuffer(in_data, dtype=np.int16)#float32)
+    saved_audio_data.append([audio_data.tolist(), pose_counter[0]])
+    return (None, pyaudio.paContinue)
+
+# Open the audio stream
+stream = p.open(format=FORMAT,
+                channels=CHANNELS,
+                rate=RATE,
+                input=True,
+                input_device_index=DEVICE_INDEX,
+                frames_per_buffer=CHUNK,
+                stream_callback=audio_callback)
+
+# Start the audio stream
+stream.start_stream()
+
+# Open webcam
+cap = cv2.VideoCapture(0)
+
+#print("Recording... Press 'q' in the webcam window to stop.") # if uncommenting cv2.imshow('Pose Tracking', frame)
+try:
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            print("Failed to grab frame")
+            break
+        
+        # Convert the BGR image to RGB
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        # Get pose results
+        results = pose.process(rgb_frame)
+        
+        if results.pose_landmarks:
+            # Save the pose landmarks
+            pose_landmarks = results.pose_landmarks.landmark
+            pose_data = [[landmark.x, landmark.y, landmark.z] for landmark in pose_landmarks]
+            saved_poses.append(pose_data)
+            
+            # Increment the dictionary value
+            pose_counter[0] += 1
+        
+        # Display the frame
+        #cv2.imshow('Pose Tracking', frame)
+        
+        cv2.waitKey(1) 
+       
+except KeyboardInterrupt:
+    print("Recording stopped.")
+
+finally:
+    # Release the webcam
+    cap.release()
+    
+    # Close the audio stream
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
+    
+    # Close the OpenCV windows
+    cv2.destroyAllWindows()
+    
+
+    audio_data = [audio_data for audio_data, _ in saved_audio_data]
+    audio_data_flat = np.concatenate(audio_data)
+    
+    # Reshape count values and select the most frequent (larger in case of tie) for each buffer
+    count_values = [np.full_like(audio_data, count_value) for audio_data, count_value in saved_audio_data]
+    count_values_flat = np.concatenate(count_values)
+    
+    # since we record audio at sample rate 44100 and poses at 30fps and want to try time-sync audio and movements, 
+    # reshape the data to audio buffers of size 1470 = 44100/30
+
+    leftover_samples = len(audio_data_flat) % 1470
+    if leftover_samples != 0:
+        audio_data_flat = audio_data_flat[:-leftover_samples]
+        count_values_flat = count_values_flat[:-leftover_samples]
+
+    audio_data_reshaped = audio_data_flat.reshape(-1, 1470)
+    count_values_reshaped = count_values_flat.reshape(-1, 1470)
+    
+    selected_count_values = []
+    for buffer in count_values_reshaped:
+        # Select the count value with the most occurrences (larger in case of tie)
+        unique_values, counts = np.unique(buffer, return_counts=True)
+        selected_count = unique_values[np.argmax(counts)]
+        selected_count_values.append(selected_count)
+    
+    # Convert to PyTorch tensors
+    audio_data_tensors = torch.tensor(audio_data_reshaped, dtype=torch.float32) #dtype=torch.int16)
+    selected_count_values_tensor = torch.tensor(selected_count_values, dtype=torch.int32)
+    poses_tensors = torch.tensor(saved_poses, dtype=torch.float32)
+
+        # Save the tensors to disk with the date and time in the filename
+
+    parent_dir = "audioposes_data"
+
+    # Create a session directory inside the parent directory
+    current_time = datetime.datetime.now()
+    formatted_time = current_time.strftime("%Y%m%d_%H%M%S")
+    session_dir = f'session_{formatted_time}_nr_poses='+str(len(poses_tensors))
+    session_dir_path = os.path.join(parent_dir, session_dir)
+    os.makedirs(session_dir_path, exist_ok=True)
+
+    # Save the tensors to disk in the session directory
+    audio_data_file_path = os.path.join(session_dir_path, 'audio_data_tensors.pt')
+    dict_values_file_path = os.path.join(session_dir_path, 'dict_values_tensors.pt')
+    poses_file_path = os.path.join(session_dir_path, 'poses_tensors.pt')
+    
+    torch.save(audio_data_tensors, audio_data_file_path)
+    torch.save(selected_count_values_tensor, dict_values_file_path)
+    torch.save(poses_tensors, poses_file_path)
+
+    audioposes_data_dir='audioposes_data'
+    all_sessions = [d for d in os.listdir(audioposes_data_dir) if os.path.isdir(os.path.join(audioposes_data_dir, d))]
+    other_sessions = [s for s in all_sessions if s != session_dir]
+    
+    if not other_sessions:
+        print("No previous session recorded to use for marginal samples. Record another session to obtain marginal samples for the mine computation.")
+    
+    else:
+        marginal_poses = get_marginal_samples(session_dir, audio_data_tensors)
+        joint_batches, marginal_batches = generate_joint_and_marginal_samples(audio_data_tensors, poses_tensors, selected_count_values_tensor.numpy(), marginal_poses, batch_size=32)
+        
+        print('Generated a dataset with '+str(len(joint_batches))+' nr of batches, with batch size 32')
+        print(f"Audio data tensors saved to {audio_data_file_path}")
+        print(f"Dictionary values tensors saved to {dict_values_file_path}")
+        print(f"Poses tensors saved to {poses_file_path}")
+
+
+
+
+
+- If added a --train flag: call the training API to instantiate a new model and train it on the DeepLake dataset. If added a --train --model_path flag call the training API to get a pre-saved model at model_path and train it on the DeepLake dataset.
+- If added a --rl flag : 
+- If added a --gen flag :
+
+
+As starting point we have this 
